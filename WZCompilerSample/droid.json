@@ -1,0 +1,17 @@
+{
+    "1P-construct": {
+        "id": 187,
+        "position": [
+            512,
+            256,
+            28
+        ],
+        "rotation": [
+            0,
+            0,
+            0
+        ],
+        "startpos": 0,
+        "template": "ConstructorDroid"
+    }
+}
