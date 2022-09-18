@@ -225,16 +225,11 @@ def write_gam(output, width, height):
 	return
 
 def write_lev(output, name):
-	types = [14,18,19]
-	for i in range(3):
-		output.write(("\nlevel   %s-T%i\n"%(name,i+1)))
-		output.write("players 2\n")
-		output.write(("type    %d\n"%types[i]))
-		output.write("dataset MULTI_CAM_3\n") # Set terrain type 3=rockies
-		output.write(("game    \"multiplay/maps/%s.gam\"\n"%name))
-		#output.write("data    \"wrf/multi/skirmish2.wrf\"\n")
-		#output.write("data    \"wrf/multi/fog3.wrf\"\n")
-	#end-for
+	output.write(("\nlevel   %s\n"%name))
+	output.write("players 2\n")
+	output.write("type    14\n")
+	output.write("dataset MULTI_CAM_3\n") # Set terrain type 3=rockies
+	output.write(("game    \"multiplay/maps/%s.gam\"\n"%name))
 	return
 
 def autogen_cliffmap(heightfilename, step, outfilename):
