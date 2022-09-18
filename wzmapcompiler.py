@@ -74,6 +74,14 @@ def tile_to_cliff(t):
 		return
 	return default_cliffdef[t]
 
+def is_px_cliff(px, mode):
+	if mode == "RGBA":
+		return px[3] > 16 # alpha detection
+	elif mode == "RGB":
+		return px[0] + px[1] + px[2] > 16 # not black
+	else:
+		return px[0] > 16 # not black either
+
 def tilemap_to_bytes(tilefilename, clifffilename):
 	"""Get an array of tile indexes from the tilemap stored in tilefilename mixed with clifffilename"""
 	try:
@@ -114,13 +122,7 @@ def tilemap_to_bytes(tilefilename, clifffilename):
 			px = timg.getpixel((x, y))
 			tile = px_to_tile(px)
 			cpx = cimg.getpixel((x,y))
-			iscliff = False
-			if cmode == "RGBA":
-				iscliff = cpx[3] > 16 # alpha detection
-			elif cmode == "RGB":
-				iscliff = cpx[0] + cpx[1] + cpx[2] > 16 # not black
-			else:
-				iscliff = cpx[0] > 16 # not black either
+			iscliff = is_px_cliff(cpx, cmode)
 			if not tile:
 				if iscliff:
 					bytes.append(default_cliff)
@@ -146,6 +148,39 @@ def tilemap_to_bytes(tilefilename, clifffilename):
 	return bytes
 
 
+def cliff_to_rotbytes(clifffilename):
+	# Rotation for the second byte
+	# Only cliffs are affected, ground textures are not rotated anyway
+	# mask is 0x30 = 00110000, 0 = not rotated, 1 = 90°, 2 = 180°, 3 = 270
+	try:
+		cimg = Image.open(clifffilename)
+	except FileNotFoundError:
+		print("File %s not found"%clifffilename)
+		return
+	except Error:
+		print("Error reading %s"%clifffilename)
+		return
+	cmode = cimg.mode
+	width,height = cimg.size
+	bytes = []
+	for y in range(height-1):
+		for x in range(width-1):
+			if is_px_cliff(cimg.getpixel((x,y)), cmode):
+				ncliff = y > 0 and is_px_cliff(cimg.getpixel((x,y-1)), cmode)
+				scliff = y < height-2 and is_px_cliff(cimg.getpixel((x,y+1)), cmode)
+				wcliff = x > 0 and is_px_cliff(cimg.getpixel((x-1,y)), cmode)
+				ecliff = y < height-2 and is_px_cliff(cimg.getpixel((x+1,y)), cmode)
+				if ncliff or scliff:
+					bytes.append(0x20)
+				else:
+					bytes.append(0)
+			else:
+				bytes.append(0)
+		# for x range end
+	# for y range end
+	return bytes
+
+
 def write_header(output, width, height):
 	"""Write the first bytes of the .map file in output"""
 	output.write(b'\x6D\x61\x70\x20') # "map"
@@ -154,13 +189,13 @@ def write_header(output, width, height):
 	output.write(num_to_32bits(height))
 	return
 
-def write_map(output, tilemap, heightmap):
+def write_map(output, tilemap, heightmap, rotmap):
 	"""Write the map content of the .map file in output"""
 	for i in range(len(heightmap)):
 		# see wz2100/lib/wzmaplib/include/wzmaplib/map.h for tile masks
 		# tile num is 0-511, id is index*2+header in ttype.ttl
 		output.write(tilemap[i].to_bytes(1,byteorder="little")) # texture
-		output.write(b'\x00') # texture modifiers
+		output.write(rotmap[i].to_bytes(1,byteorder="little")) # rotation
 		output.write((heightmap[i]).to_bytes(1,byteorder="little")) # height
 	return
 
@@ -262,8 +297,11 @@ with open("./build/multiplay/maps/%s/game.map"%map_name, 'wb') as o:
 	tilemap = tilemap_to_bytes("./tilemap.png", "./cliffmap.png")
 	if not tilemap:
 		exit()
+	rotmap = cliff_to_rotbytes("./cliffmap.png")
+	if not rotmap:
+		exit()
 	write_header(o, width, height)
-	write_map(o, tilemap, heightmap)
+	write_map(o, tilemap, heightmap, rotmap)
 	write_gateways(o, None)
 	print("Done compiling game.map")
 with open("./build/multiplay/maps/%s.gam"%map_name, 'wb') as o:
