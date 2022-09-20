@@ -23,7 +23,6 @@ What is missing
 - Reads only 8-bits pixel maps, it doesn't use the new json format that could handle 16-bits values
 - Maps for more than 2 players (currently a hardcoded value for simplicity)
 - Generating output png files for textures errors (unknown color from tilemap or cliff that doesn't have a cliff texture associated to the terrain type)
-- A map properties files for conveniency, maybe (with map name, size, player count, environment, autocliff value etc)
 
 Prerequisites
 =============
@@ -40,7 +39,7 @@ Why Python? Because it's a proof of concept. The "best" language would be C++ to
 Running the compiler
 ====================
 
-Create a directory named after your map in the compiler directory (or anywhere if you know how to install python scripts properly). Copy `rockies.ttp` inside and rename it `ttypes.ttp`. Create a `heightmap.png`, `cliffmap.png` and `tilemap.png` in that folder (see below). Add your `droid.json`, `feature.json` and `struct.json`.
+Create a directory named after your map in the compiler directory (or anywhere if you know how to install python scripts properly). Copy `rockies.ttp` inside and rename it `ttypes.ttp` and create a `map.json` file (see below). Create a `heightmap.png`, `cliffmap.png` and `tilemap.png` in that folder (see below). Add your `droid.json`, `feature.json` and `struct.json`.
 
 A map directory ready for compilation must contains the following files:
 
@@ -48,6 +47,7 @@ A map directory ready for compilation must contains the following files:
 - droid.json
 - feature.json
 - heightmap.png
+- map.json
 - struct.json
 - tilemap.png
 - ttypes.ttp (which is a copy of the rockies.ttp file from the compiler)
@@ -57,7 +57,7 @@ A small sample map is provided with the source code.
 When ready, run from that map directory:
 
 ```
-python3 ../wzmapcompiler.py <map width> <map height>
+python3 ../wzmapcompiler.py <map directory>
 ```
 with the number of tiles of your map. It should be the same size as your png maps minus one (that is a map of 64x64 tiles uses maps of 65x65 pixels).
 
@@ -70,12 +70,26 @@ Autogenerating cliffmap
 When a heightmap is available, run
 
 ```
-python3 ../wzmapcompiler.py autocliff
+python3 ../wzmapcompiler.py autocliff <map directory>
 ```
 
 to automatically generate a cliffmap. It will be created in autocliffmap.png, you can directly move it to cliffmap.png or merge it into your existing cliffmap.
 
 You can also provide the minimum height difference in pixel value as a parameter after autocliff.
+
+Creating the map.json file
+==========================
+
+The map definition contains some informations about the map to compile. It is a json file with the following properties:
+
+- `width`: the width of the map in tiles
+- `height`: the height of the map in tiles
+- `players`: the number of players on the map
+- `name`: (optional) an alternative map name. When not provided, the map directory is used as its name.
+
+The `name` has some restrictions, that applies either to the `name` property or the directory name when not set. For example the game may not be able to read the map file if the name starts with a number.
+
+For readability in the game, names should not be too long. 16 characters or more should be avoided, but that doesn't prevent the map to be listed.
 
 Painting the map files
 ======================
@@ -134,7 +148,7 @@ Tips
 
 Naming convention
 -----------------
-To be able to sort maps from your directories, your map name should start by `Xc-` with X the number of players. Even if it is now not read from the directory name. If your map is named `MyCompiledMap` for 2 players, it should be named `2c-MyCompiledMap`. For readability in the game, names should not be too long. 16 characters or more should be avoided.
+To be able to sort maps from your directories, the compiler adds `Xc-` with X the number of players to the wz file name. It has no effect in game. If your map is named `MyCompiledMap` for 2 players, it will create `2c-MyCompiledMap.wz`.
 
 Unbuildable sides of the map
 ----------------------------

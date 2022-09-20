@@ -1,5 +1,6 @@
 from PIL import Image
 import zipfile
+import json
 import os, sys, shutil
 
 # RGB codes to tile index
@@ -224,9 +225,9 @@ def write_gam(output, width, height):
 	output.write(b'\x00\x00\x00\x00') # ???
 	return
 
-def write_lev(output, name):
+def write_lev(output, name, players):
 	output.write(("\nlevel   %s\n"%name))
-	output.write("players 2\n")
+	output.write("players %d\n"%players)
 	output.write("type    14\n")
 	output.write("dataset MULTI_CAM_3\n") # Set terrain type 3=rockies
 	output.write(("game    \"multiplay/maps/%s.gam\"\n"%name))
@@ -264,65 +265,98 @@ def autogen_cliffmap(heightfilename, step, outfilename):
 	return True
 
 
+def get_base_dir(mapdir):
+	if mapdir[0] == "/":
+		return mapdir
+	else:
+		return os.path.join(os.getcwd(), mapdir)
+
+
+def read_map_props(filepath):
+	with open(filepath, 'r') as props_file:
+		props = json.load(props_file)
+	#open end
+	return props
 
 if len(sys.argv) < 2:
 	print("Usage:")
-	print("	wzmapcompiler.py width height")
-	print("	wzmapcompiler.py autocliff [min step=%d]")
+	print("	wzmapcompiler.py mapdir")
+	print("	wzmapcompiler.py autocliff [min step=%d] mapdir"%default_autocliff_diff)
 	exit()
 
+mapdir = sys.argv[1]
 if (len(sys.argv) >= 2 and sys.argv[1] == "autocliff"):
 	step = default_autocliff_diff
-	if (len(sys.argv) >= 3):
+	mapdir = sys.argv[2]
+	if (len(sys.argv) >= 4):
 		step = int(argv[2])
-	if autogen_cliffmap("./heightmap.png", step, "./autocliffmap.png"):
+		mapdir = argv[3]
+	mapdir = get_base_dir(mapdir)
+	if autogen_cliffmap(os.path.join(mapdir, "heightmap.png"), step, os.path.join(mapdir, "autocliffmap.png")):
 		print("Done generating cliffmap into autocliffmap.png with step of %d."%step)
 	exit()
 
-width = int(sys.argv[1])
-height = int(sys.argv[2])
+if mapdir == '.':
+	mapdir = os.getcwd()
 
-map_name = os.path.basename(os.getcwd())
-os.makedirs(os.path.join("build", "multiplay", "maps", map_name), exist_ok=True)
+try:
+	props = read_map_props(os.path.join(mapdir, "map.json"))
+except FileNotFoundError:
+	print("Cannot read %s"%os.path.join(mapdir, "map.json"))
+	exit()
+except json.decoder.JSONDecodeError as e:
+	print("Cannot parse %s: %s"%(os.path.join(mapdir, "map.json"), e))
+	exit()
 
-with open("./build/multiplay/maps/%s/game.map"%map_name, 'wb') as o:
-	heightmap = heightmap_to_bytes("./heightmap.png")
+if not ('width' in props) or not ('height' in props) or not ('players' in props):
+	print("Cannot read width, height and/or players from map.json")
+	exit()
+
+if not ('name' in props):
+	props['name'] = os.path.basename(os.path.abspath(os.path.join(os.getcwd(), mapdir)))
+
+
+os.makedirs(os.path.join(mapdir, "build", "multiplay", "maps", props['name']), exist_ok=True)
+
+with open(os.path.join(mapdir, "build/multiplay/maps/%s/game.map"%props['name']), 'wb') as o:
+	heightmap = heightmap_to_bytes(os.path.join(mapdir, "heightmap.png"))
 	if not heightmap:
 		exit()
-	tilemap = tilemap_to_bytes("./tilemap.png", "./cliffmap.png")
+	tilemap = tilemap_to_bytes(os.path.join(mapdir, "tilemap.png"), os.path.join(mapdir, "cliffmap.png"))
 	if not tilemap:
 		exit()
-	rotmap = cliff_to_rotbytes("./cliffmap.png")
+	rotmap = cliff_to_rotbytes(os.path.join(mapdir, "cliffmap.png"))
 	if not rotmap:
 		exit()
-	write_header(o, width, height)
+	write_header(o, props['width'], props['height'])
 	write_map(o, tilemap, heightmap, rotmap)
 	write_gateways(o, None)
 	print("Done compiling game.map")
-with open("./build/multiplay/maps/%s.gam"%map_name, 'wb') as o:
-	write_gam(o, width, height)
-	print("Done generating %s.gam"%map_name)
-with open("./build/%s.addon.lev"%map_name, 'w') as o:
-	write_lev(o, map_name)
-	print("Done creating %s.addon.lev"%map_name)
-shutil.copyfile("./droid.json", "./build/multiplay/maps/%s/droid.json"%map_name)
-shutil.copyfile("./feature.json", "./build/multiplay/maps/%s/feature.json"%map_name)
-shutil.copyfile("./struct.json", "./build/multiplay/maps/%s/struct.json"%map_name)
-shutil.copyfile("./ttypes.ttp", "./build/multiplay/maps/%s/ttypes.ttp"%map_name)
+with open(os.path.join(mapdir, "build/multiplay/maps/%s.gam"%props['name']), 'wb') as o:
+	write_gam(o, props['width'], props['height'])
+	print("Done generating %s.gam"%props['name'])
+with open(os.path.join(mapdir, "build/%s.addon.lev"%props['name']), 'w') as o:
+	write_lev(o, props['name'], props['players'])
+	print("Done creating %s.addon.lev"%props['name'])
+shutil.copyfile(os.path.join(mapdir, "droid.json"), os.path.join(mapdir, "build/multiplay/maps/%s/droid.json"%props['name']))
+shutil.copyfile(os.path.join(mapdir, "feature.json"), os.path.join(mapdir, "build/multiplay/maps/%s/feature.json"%props['name']))
+shutil.copyfile(os.path.join(mapdir, "struct.json"), os.path.join(mapdir, "build/multiplay/maps/%s/struct.json"%props['name']))
+shutil.copyfile(os.path.join(mapdir, "ttypes.ttp"), os.path.join(mapdir, "build/multiplay/maps/%s/ttypes.ttp"%props['name']))
 print("Copied ttypes.ttp, droid.json, feature.json and struct.json into multiplayer")
 
 generated_files=[
-	"%s.addon.lev"%map_name,
-	"multiplay/maps/%s.gam"%map_name,
-	"multiplay/maps/%s/game.map"%map_name,
-	"multiplay/maps/%s/ttypes.ttp"%map_name,
-	"multiplay/maps/%s/droid.json"%map_name,
-	"multiplay/maps/%s/feature.json"%map_name,
-	"multiplay/maps/%s/struct.json"%map_name,
+	"%s.addon.lev"%props['name'],
+	"multiplay/maps/%s.gam"%props['name'],
+	"multiplay/maps/%s/game.map"%props['name'],
+	"multiplay/maps/%s/ttypes.ttp"%props['name'],
+	"multiplay/maps/%s/droid.json"%props['name'],
+	"multiplay/maps/%s/feature.json"%props['name'],
+	"multiplay/maps/%s/struct.json"%props['name'],
 ]
-	
-with zipfile.ZipFile('%s.wz'%map_name, 'w', zipfile.ZIP_DEFLATED) as wz:
+
+wzfilename = '%dc-%s.wz'%(props['players'], props['name'])
+with zipfile.ZipFile(os.path.join(mapdir, wzfilename), 'w', zipfile.ZIP_DEFLATED) as wz:
 	for f in generated_files:
-		wz.write(os.path.join("build", f), f)
-	print("Done creating %s.wz"%map_name)
+		wz.write(os.path.join(mapdir, "build", f), f)
+	print("Done creating %s"%wzfilename)
 
