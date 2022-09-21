@@ -4,7 +4,7 @@ import json
 import os, sys, shutil
 
 # RGB codes to tile index
-default_tiledef = {
+rockies_tiledef = {
 	# Rocky as set in FlaME
 	(44,59,39): 0, # grass
 	(108,102,98): 5, # gravel
@@ -15,17 +15,43 @@ default_tiledef = {
 	(99,101,101): 22, # concrete
 	(29,47,77): 17 # water
 }
+arizona_tiledef = {
+	# Arizona as set in FlaME
+	(255,0,0): 48, # red
+	(128,128,0): 9, # yellow
+	(255,255,0): 12, # sand
+	(64,64,64): 5, # brown
+	(0,128,0): 23, # green
+	(0,0,0): 22, # concrete
+	(0,0,255): 17, # water
+}
 # Regular tile index to cliff tile index 
-default_cliffdef = {
+rockies_cliffdef = {
 	# Rocky cliffs
 	5: 46, # gravel to gravel cliff
 	41: 44, # gravel snow to gravel snow cliff
 	23: 29, # grass snow to grass snow cliff
-	64: 76 # snow to snow cliff
+	64: 76, # snow to snow cliff
+	"default": 46
 }
-default_cliff = 46
+arizona_cliffdef = {
+	# Arizona cliffs
+	48: 71, # red to red cliff
+	"default": 71
+}
 default_autocliff_diff = 50 # roughly 35°
-
+env_tiledef = {
+	"r": rockies_tiledef,
+	"a": arizona_tiledef,
+}
+env_cliffdef = {
+	"r": rockies_cliffdef,
+	"a": arizona_cliffdef,
+}
+env_dataset = {
+	"r": "MULTI_CAM_3",
+	"a": "MULTI_CAM_1",
+}
 
 def num_to_32bits(num):
 	"""Convert a int32 to a 4-bytes array"""
@@ -62,18 +88,18 @@ def heightmap_to_bytes(filename):
 	return bytes
 
 
-def px_to_tile(px):
+def px_to_tile(px, tiledef):
 	"""Get the tile index from a pixel color"""
 	rgb = (px[0], px[1], px[2])
-	if not rgb in default_tiledef:
+	if not rgb in tiledef:
 		return
-	return default_tiledef[rgb]
+	return tiledef[rgb]
 
-def tile_to_cliff(t):
+def tile_to_cliff(t, cliffdef):
 	"""Get the cliff tile index from a tile index"""
-	if not t in default_cliffdef:
+	if not t in cliffdef:
 		return
-	return default_cliffdef[t]
+	return cliffdef[t]
 
 def is_px_cliff(px, mode):
 	if mode == "RGBA":
@@ -83,7 +109,7 @@ def is_px_cliff(px, mode):
 	else:
 		return px[0] > 16 # not black either
 
-def tilemap_to_bytes(tilefilename, clifffilename):
+def tilemap_to_bytes(tilefilename, clifffilename, env):
 	"""Get an array of tile indexes from the tilemap stored in tilefilename mixed with clifffilename"""
 	try:
 		timg = Image.open(tilefilename)
@@ -118,23 +144,25 @@ def tilemap_to_bytes(tilefilename, clifffilename):
 	if cmode != "RGB" and cmode != "RGBA" and cmode != "L":
 		print("Cannot parse cliffmap, accepting only RGB, RGBA or L (greyscale)")
 		return
+	tiledef = env_tiledef[env[0]]
+	cliffdef = env_cliffdef[env[0]]
 	for y in range(height-1):
 		for x in range(width-1):
 			px = timg.getpixel((x, y))
-			tile = px_to_tile(px)
+			tile = px_to_tile(px, tiledef)
 			cpx = cimg.getpixel((x,y))
 			iscliff = is_px_cliff(cpx, cmode)
 			if not tile:
 				if iscliff:
-					bytes.append(default_cliff)
+					bytes.append(cliffdef['default'])
 				else:
 					bytes.append(0)
 				terror = True
 			else:
 				if iscliff:
-					tile = tile_to_cliff(tile)
+					tile = tile_to_cliff(tile, cliffdef)
 				if not tile:
-					bytes.append(default_cliff)
+					bytes.append(cliffdef['default'])
 					cerror = True
 				else:
 					bytes.append(tile)
@@ -225,11 +253,12 @@ def write_gam(output, width, height):
 	output.write(b'\x00\x00\x00\x00') # ???
 	return
 
-def write_lev(output, name, players):
+def write_lev(output, name, players, env):
+	dataset = env_dataset[env[0]]
 	output.write(("\nlevel   %s\n"%name))
 	output.write("players %d\n"%players)
 	output.write("type    14\n")
-	output.write("dataset MULTI_CAM_3\n") # Set terrain type 3=rockies
+	output.write(("dataset %s\n")%dataset) # Set terrain type
 	output.write(("game    \"multiplay/maps/%s.gam\"\n"%name))
 	return
 
@@ -308,8 +337,12 @@ except json.decoder.JSONDecodeError as e:
 	print("Cannot parse %s: %s"%(os.path.join(mapdir, "map.json"), e))
 	exit()
 
-if not ('width' in props) or not ('height' in props) or not ('players' in props):
-	print("Cannot read width, height and/or players from map.json")
+if not ('width' in props) or not ('height' in props) or not ('players' in props) or not ('env' in props):
+	print("Cannot read width, height, env and/or players from map.json")
+	exit()
+
+if not props['env'][0] in env_dataset:
+	print("Environment not found, should be 'arizona' or 'rockies'")
 	exit()
 
 if not ('name' in props):
@@ -322,7 +355,7 @@ with open(os.path.join(mapdir, "build/multiplay/maps/%s/game.map"%props['name'])
 	heightmap = heightmap_to_bytes(os.path.join(mapdir, "heightmap.png"))
 	if not heightmap:
 		exit()
-	tilemap = tilemap_to_bytes(os.path.join(mapdir, "tilemap.png"), os.path.join(mapdir, "cliffmap.png"))
+	tilemap = tilemap_to_bytes(os.path.join(mapdir, "tilemap.png"), os.path.join(mapdir, "cliffmap.png"), props['env'])
 	if not tilemap:
 		exit()
 	rotmap = cliff_to_rotbytes(os.path.join(mapdir, "cliffmap.png"))
@@ -336,7 +369,7 @@ with open(os.path.join(mapdir, "build/multiplay/maps/%s.gam"%props['name']), 'wb
 	write_gam(o, props['width'], props['height'])
 	print("Done generating %s.gam"%props['name'])
 with open(os.path.join(mapdir, "build/%s.addon.lev"%props['name']), 'w') as o:
-	write_lev(o, props['name'], props['players'])
+	write_lev(o, props['name'], props['players'], props['env'])
 	print("Done creating %s.addon.lev"%props['name'])
 shutil.copyfile(os.path.join(mapdir, "droid.json"), os.path.join(mapdir, "build/multiplay/maps/%s/droid.json"%props['name']))
 shutil.copyfile(os.path.join(mapdir, "feature.json"), os.path.join(mapdir, "build/multiplay/maps/%s/feature.json"%props['name']))

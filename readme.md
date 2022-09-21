@@ -19,9 +19,8 @@ What is missing
 ---------------
 - Providing gateways for the AI through a gateway map (similar to the cliffmap).
 - Cliff texture orientation (and generally texture orientation)
-- Only supports rockies tileset with a `ttypes.ttp` file that was copied from an existing map
+- Only supports rockies and Arizona tileset with a `ttypes.ttp` file that was copied from an existing map
 - Reads only 8-bits pixel maps, it doesn't use the new json format that could handle 16-bits values
-- Maps for more than 2 players (currently a hardcoded value for simplicity)
 - Generating output png files for textures errors (unknown color from tilemap or cliff that doesn't have a cliff texture associated to the terrain type)
 
 Prerequisites
@@ -85,6 +84,7 @@ The map definition contains some informations about the map to compile. It is a 
 - `width`: the width of the map in tiles
 - `height`: the height of the map in tiles
 - `players`: the number of players on the map
+- `env`: the environment to use, either `rockies` or `arizona` (urban not supported yet)
 - `name`: (optional) an alternative map name. When not provided, the map directory is used as its name.
 
 The `name` has some restrictions, that applies either to the `name` property or the directory name when not set. For example the game may not be able to read the map file if the name starts with a number.
@@ -136,6 +136,16 @@ For rockies environment:
 - Snow: #f1f1f1
 - Concrete: #636565
 - Water: #1d2f4d
+
+For Arizona environment:
+
+- Red: #ff0000
+- Yellow: #808000
+- Sand: #ffff00
+- Brown: #404040
+- Green: #008000
+- Concrete #000000
+- Water: #0000ff
 
 Any pixel outside those values will raise an error about unknown tiles and it will be rendered as grass (tile 0)
 
