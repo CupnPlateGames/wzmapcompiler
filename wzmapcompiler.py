@@ -101,7 +101,7 @@ def tile_to_cliff(t, cliffdef):
 		return
 	return cliffdef[t]
 
-def is_px_cliff(px, mode):
+def px_as_boolean(px, mode):
 	if mode == "RGBA":
 		return px[3] > 16 # alpha detection
 	elif mode == "RGB":
@@ -151,7 +151,7 @@ def tilemap_to_bytes(tilefilename, clifffilename, env):
 			px = timg.getpixel((x, y))
 			tile = px_to_tile(px, tiledef)
 			cpx = cimg.getpixel((x,y))
-			iscliff = is_px_cliff(cpx, cmode)
+			iscliff = px_as_boolean(cpx, cmode)
 			if not tile:
 				if iscliff:
 					bytes.append(cliffdef['default'])
@@ -194,11 +194,11 @@ def cliff_to_rotbytes(clifffilename):
 	bytes = []
 	for y in range(height-1):
 		for x in range(width-1):
-			if is_px_cliff(cimg.getpixel((x,y)), cmode):
-				ncliff = y > 0 and is_px_cliff(cimg.getpixel((x,y-1)), cmode)
-				scliff = y < height-2 and is_px_cliff(cimg.getpixel((x,y+1)), cmode)
-				wcliff = x > 0 and is_px_cliff(cimg.getpixel((x-1,y)), cmode)
-				ecliff = y < height-2 and is_px_cliff(cimg.getpixel((x+1,y)), cmode)
+			if px_as_boolean(cimg.getpixel((x,y)), cmode):
+				ncliff = y > 0 and px_as_boolean(cimg.getpixel((x,y-1)), cmode)
+				scliff = y < height-2 and px_as_boolean(cimg.getpixel((x,y+1)), cmode)
+				wcliff = x > 0 and px_as_boolean(cimg.getpixel((x-1,y)), cmode)
+				ecliff = y < height-2 and px_as_boolean(cimg.getpixel((x+1,y)), cmode)
 				if ncliff or scliff:
 					bytes.append(0x20)
 				else:
@@ -208,6 +208,66 @@ def cliff_to_rotbytes(clifffilename):
 		# for x range end
 	# for y range end
 	return bytes
+
+def find_gate(img, mode, startx, starty, width, height):
+	gate = {"startx": startx, "starty": starty}
+	x = startx
+	y = starty
+	endx = x
+	endy = y
+	if not px_as_boolean(img.getpixel((x,y)), mode):
+		return None
+	# Gates are only lines, not rectangles. Check the longest path.
+	# Find gate width
+	x = x+1
+	while px_as_boolean(img.getpixel((x,starty)), mode) and x < width:
+		x = x+1
+	endx = x-1
+	width = endx - startx
+	# Find gate height
+	y = y+1
+	while px_as_boolean(img.getpixel((startx,y)), mode) and y < height:
+		y = y+1
+	endy = y-1
+	height = endy - starty
+	if width > height:
+		gate['endx'] = endx
+		gate['endy'] = starty
+	else:
+		gate['endx'] = startx
+		gate['endy'] = endy
+	return gate
+
+def gatemap_to_gates(gatefilename):
+	try:
+		img = Image.open(gatefilename)
+	except FileNotFoundError:
+		print("File %s not found, ignoring gateways"%gatefilename)
+		return []
+	except Error:
+		print("Error reading %s"%gatefilename)
+		return
+	mode = img.mode
+	width,height = img.size
+	gates = []
+	px_read = {}
+	print("Reading gatemap %s as %s" % (gatefilename, mode))
+	for y in range(height-1):
+		for x in range(width-1):
+			if "%d-%d"%(x,y) in px_read:
+				continue
+			gate = find_gate(img, mode, x, y, width, height)
+			if gate:
+				gates.append(gate)
+				for gx in range(gate["startx"], gate["endx"]+1):
+					for gy in range(gate["starty"], gate["endy"]+1):
+						px_read["%d-%d"%(gx,gy)] = True
+			else:
+				px_read["%d-%d"%(x,y)] = True
+			# if gate end
+		# for x range end
+	# for y range end
+	return gates
 
 
 def write_header(output, width, height):
@@ -230,9 +290,13 @@ def write_map(output, tilemap, heightmap, rotmap):
 
 def write_gateways(output, gateways):
 	"""Write the gateway map content of the .map file in output"""
-	print("Gateways not currently supported, emptying")
 	output.write(b'\x01\x00\x00\x00') # version
-	output.write(b'\x00\x00\x00\x00') # count
+	output.write(num_to_32bits(len(gateways))) # count
+	for gateway in gateways:
+		output.write(gateway["startx"].to_bytes(1,byteorder="little"))
+		output.write(gateway["starty"].to_bytes(1,byteorder="little"))
+		output.write(gateway["endx"].to_bytes(1,byteorder="little"))
+		output.write(gateway["endy"].to_bytes(1,byteorder="little"))
 	return
 
 
@@ -361,9 +425,12 @@ with open(os.path.join(mapdir, "build/multiplay/maps/%s/game.map"%props['name'])
 	rotmap = cliff_to_rotbytes(os.path.join(mapdir, "cliffmap.png"))
 	if not rotmap:
 		exit()
+	gates = gatemap_to_gates(os.path.join(mapdir, "gatemap.png"))
+	if gates == None:
+		exit()
 	write_header(o, props['width'], props['height'])
 	write_map(o, tilemap, heightmap, rotmap)
-	write_gateways(o, None)
+	write_gateways(o, gates)
 	print("Done compiling game.map")
 with open(os.path.join(mapdir, "build/multiplay/maps/%s.gam"%props['name']), 'wb') as o:
 	write_gam(o, props['width'], props['height'])

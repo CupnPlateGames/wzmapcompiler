@@ -17,7 +17,6 @@ Pre-rendering maps. You'll have to use your imagination and check what it actual
 
 What is missing
 ---------------
-- Providing gateways for the AI through a gateway map (similar to the cliffmap).
 - Cliff texture orientation (and generally texture orientation)
 - Only supports rockies and Arizona tileset with a `ttypes.ttp` file that was copied from an existing map
 - Reads only 8-bits pixel maps, it doesn't use the new json format that could handle 16-bits values
@@ -45,6 +44,7 @@ A map directory ready for compilation must contains the following files:
 - cliffmap.png
 - droid.json
 - feature.json
+- gatemap.png (optional)
 - heightmap.png
 - map.json
 - struct.json
@@ -152,6 +152,14 @@ Any pixel outside those values will raise an error about unknown tiles and it wi
 Note that the game renderer will try to generate transitions between terrain types smoothly, so the actual rendering may be different when multiple terrain types are present close one to an other.
 
 The right-most and bottom-most pixel lines are only used to subtilely start a transition outside the map.
+
+
+The gatemap
+-----------
+This map defines locations where the AI should place defense buildings. When no gatemap is provided, the map is compiled without gateways.
+
+Like the cliffmap, the gatemap uses colored pixels to define gateways. A gate is a line of colored pixels, the AI will place gate defenses around them.
+
 
 Tips
 ====
