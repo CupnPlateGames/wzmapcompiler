@@ -25,21 +25,29 @@ arizona_tiledef = {
 	(0,0,0): 22, # concrete
 	(0,0,255): 17, # water
 }
-# Regular tile index to cliff tile index 
+# Regular tile index to cliff tile index
 rockies_cliffdef = {
 	# Rocky cliffs
-	5: 46, # gravel to gravel cliff
-	41: 44, # gravel snow to gravel snow cliff
-	23: 29, # grass snow to grass snow cliff
-	64: 76, # snow to snow cliff
-	"default": 46
+	5: {"flat": 46, "straight": 46, "corner": 45}, # gravel to gravel cliff
+	41: {"flat": 44, "straight": 44, "corner": 9}, # gravel snow to gravel snow cliff
+	64: {"flat": 78, "straight": 78, "corner": 63}, # snow to snow cliff
+	"default": {"flat": 46, "straight": 46, "corner": 45}
+}
+# Corner cliffs angle reference is for cliff on top-right
+rockies_tile_rotation = {
+	9: 90,
+	63: 90
 }
 arizona_cliffdef = {
 	# Arizona cliffs
-	48: 71, # red to red cliff
-	"default": 71
+	48: { "flat": 71, "straight": 71, "corner": 75}, # red to red cliff
+	"default": { "flat": 71, "straight": 71, "corner": 75}
+}
+arizona_tile_rotation = {
+	75: 90
 }
 default_autocliff_diff = 50 # roughly 35°
+default_flat_cliff_diff = 30
 env_tiledef = {
 	"r": rockies_tiledef,
 	"a": arizona_tiledef,
@@ -47,6 +55,10 @@ env_tiledef = {
 env_cliffdef = {
 	"r": rockies_cliffdef,
 	"a": arizona_cliffdef,
+}
+env_tilerot = {
+	"r": rockies_tile_rotation,
+	"a": arizona_tile_rotation,
 }
 env_dataset = {
 	"r": "MULTI_CAM_3",
@@ -61,8 +73,8 @@ def num_to_32bits(num):
 	b3 = int(num&0x000000ff)
 	return bytearray([b3,b2,b1,b0])
 
-def heightmap_to_bytes(filename):
-	"""Read heightmap in filename and return the height byte array"""
+def read_heightmap(filename):
+	"""Read heightmap in filename and return a 2-dimensional array of height"""
 	try:
 		img = Image.open(filename)
 	except FileNotFoundError:
@@ -73,16 +85,33 @@ def heightmap_to_bytes(filename):
 		return
 	mode = img.mode
 	width,height = img.size
-	bytes = []
+	heights = []
+	for x in range(width):
+		heights.append([])
+		for y in range(height):
+			heights[x].append(0)
 	print("Reading heightmap %s as %s" % (filename, mode))
 	if mode != "RGB" and mode != "RGBA" and mode != "L":
 		print("Cannot parse heightmap, accepting only RGB, RGBA or L (greyscale)")
 		return
-	for y in range(height-1):
-		for x in range(width-1):
+	for y in range(height):
+		for x in range(width):
 			px = img.getpixel((x, y))
 			# px is a tuple of values for each channels
-			bytes.append(px[0])
+			heights[x][y] = px[0]
+		#end-for
+	#end-for
+	return heights
+
+def map_to_bytes(m):
+	"""Convert a map to a linear byte array"""
+	width = len(m)
+	height = len(m[0])
+	bytes = []
+	for y in range(height-1):
+		for x in range(width-1):
+			value = m[x][y]
+			bytes.append(value)
 		#end-for
 	#end-for
 	return bytes
@@ -95,11 +124,13 @@ def px_to_tile(px, tiledef):
 		return
 	return tiledef[rgb]
 
-def tile_to_cliff(t, cliffdef):
+def tile_to_cliff(t, cliffdef, cliff_type):
 	"""Get the cliff tile index from a tile index"""
 	if not t in cliffdef:
 		return
-	return cliffdef[t]
+	if not cliff_type in cliffdef[t]:
+		return
+	return cliffdef[t][cliff_type]
 
 def px_as_boolean(px, mode):
 	if mode == "RGBA":
@@ -109,7 +140,7 @@ def px_as_boolean(px, mode):
 	else:
 		return px[0] > 16 # not black either
 
-def tilemap_to_bytes(tilefilename, clifffilename, env):
+def read_tilemap(tilefilename, clifffilename, env, heights):
 	"""Get an array of tile indexes from the tilemap stored in tilefilename mixed with clifffilename"""
 	try:
 		timg = Image.open(tilefilename)
@@ -133,7 +164,11 @@ def tilemap_to_bytes(tilefilename, clifffilename, env):
 	if width != cimg.size[0] or height != cimg.size[1]:
 		print("Tile map and cliff map are not the same size")
 		return
-	bytes = []
+	tiles = []
+	for x in range(width):
+		tiles.append([])
+		for y in range(height):
+			tiles[x].append(0)
 	terror = False
 	cerror = False
 	print("Reading tilemap %s as %s" % (tilefilename, tmode))
@@ -154,18 +189,18 @@ def tilemap_to_bytes(tilefilename, clifffilename, env):
 			iscliff = px_as_boolean(cpx, cmode)
 			if not tile:
 				if iscliff:
-					bytes.append(cliffdef['default'])
-				else:
-					bytes.append(0)
+					cliff_type = get_cliff_type(get_tile_height(heights, x, y))[0]
+					tiles[x][y] = cliffdef['default'][cliff_type]
 				terror = True
 			else:
 				if iscliff:
-					tile = tile_to_cliff(tile, cliffdef)
+					cliff_type = get_cliff_type(get_tile_height(heights, x, y))[0]
+					tile = tile_to_cliff(tile, cliffdef, cliff_type)
 				if not tile:
-					bytes.append(cliffdef['default'])
+					tiles[x][y] = cliffdef['default']["straight"]
 					cerror = True
 				else:
-					bytes.append(tile)
+					tiles[x][y] = tile
 				#if-else-end
 			#if-else-end
 		#end-for
@@ -174,10 +209,55 @@ def tilemap_to_bytes(tilefilename, clifffilename, env):
 		print("Error(s) while reading tilemap: unknown tile(s)")
 	if cerror:
 		print("Error(s) while reading cliffmap: incompatible base tile(s)")
-	return bytes
+	return tiles
+
+def get_tile_height(heights, x, y):
+	return [heights[x][y], heights[x+1][y], heights[x+1][y+1], heights[x][y+1]]
+
+def get_cliff_type(tile_heights):
+	rotation = 0
+	min_height = min(tile_heights[0], tile_heights[1], tile_heights[2], tile_heights[3])
+	max_height = max(tile_heights[0], tile_heights[1], tile_heights[2], tile_heights[3])
+	height_diff = max_height - min_height
+	if height_diff <= default_flat_cliff_diff:
+		return ("flat", 0)
+	top = [0, 0, 0, 0]
+	for i in range(0,4):
+		if (tile_heights[i] > min_height + default_flat_cliff_diff):
+			top[i] = 1
+	top_count = top[0] + top[1] + top[2] + top[3]
+	if top_count == 2:
+		if top[0] and top[1]:
+			return ("straight", 0)
+		if top[1] and top[2]:
+			return ("straight", 90)
+		if top[2] and top[3]:
+			return ("straight", 180)
+		if top[3] and top[0]:
+			return ("straight", 270)
+		else:
+			return ("straight", 90)
+	elif top_count == 1:
+		if top[0]:
+			return ("corner", 270)
+		if top[1]:
+			return ("corner", 0)
+		if top[2]:
+			return ("corner", 90)
+		else:
+			return ("corner", 180)
+	elif top_count == 3:
+		if not top[0]:
+			return ("corner", 270)
+		if not top[1]:
+			return ("corner", 0)
+		if not top[2]:
+			return ("corner", 90)
+		else:
+			return ("corner", 180)
 
 
-def cliff_to_rotbytes(clifffilename):
+def cliff_to_rotbytes(clifffilename, env, heights, tiles):
 	# Rotation for the second byte
 	# Only cliffs are affected, ground textures are not rotated anyway
 	# mask is 0x30 = 00110000, 0 = not rotated, 1 = 90°, 2 = 180°, 3 = 270
@@ -192,19 +272,28 @@ def cliff_to_rotbytes(clifffilename):
 	cmode = cimg.mode
 	width,height = cimg.size
 	bytes = []
+	tile_rotation = env_tilerot[env[0]]
 	for y in range(height-1):
 		for x in range(width-1):
 			if px_as_boolean(cimg.getpixel((x,y)), cmode):
-				ncliff = y > 0 and px_as_boolean(cimg.getpixel((x,y-1)), cmode)
-				scliff = y < height-2 and px_as_boolean(cimg.getpixel((x,y+1)), cmode)
-				wcliff = x > 0 and px_as_boolean(cimg.getpixel((x-1,y)), cmode)
-				ecliff = y < height-2 and px_as_boolean(cimg.getpixel((x+1,y)), cmode)
-				if ncliff or scliff:
-					bytes.append(0x20)
+				if x == width - 1 or y == height -1:
+					bytes.append(0x00)
 				else:
-					bytes.append(0)
+					tile_heights = [heights[x][y], heights[x+1][y], heights[x+1][y+1], heights[x][y+1]]
+					tile = tiles[x][y]
+					angle = get_cliff_type(tile_heights)[1]
+					if tile in tile_rotation:
+						angle = (angle + tile_rotation[tile]) % 360
+					if angle == 0:
+						bytes.append(0x00)
+					elif angle == 90:
+						bytes.append(0x10)
+					elif angle == 180:
+						bytes.append(0x20)
+					elif angle == 270:
+						bytes.append(0x30)
 			else:
-				bytes.append(0)
+				bytes.append(0x00)
 		# for x range end
 	# for y range end
 	return bytes
@@ -416,13 +505,15 @@ if not ('name' in props):
 os.makedirs(os.path.join(mapdir, "build", "multiplay", "maps", props['name']), exist_ok=True)
 
 with open(os.path.join(mapdir, "build/multiplay/maps/%s/game.map"%props['name']), 'wb') as o:
-	heightmap = heightmap_to_bytes(os.path.join(mapdir, "heightmap.png"))
-	if not heightmap:
+	heights = read_heightmap(os.path.join(mapdir, "heightmap.png"))
+	if not heights:
 		exit()
-	tilemap = tilemap_to_bytes(os.path.join(mapdir, "tilemap.png"), os.path.join(mapdir, "cliffmap.png"), props['env'])
+	heightmap = map_to_bytes(heights)
+	tiles = read_tilemap(os.path.join(mapdir, "tilemap.png"), os.path.join(mapdir, "cliffmap.png"), props['env'], heights)
+	tilemap = map_to_bytes(tiles)
 	if not tilemap:
 		exit()
-	rotmap = cliff_to_rotbytes(os.path.join(mapdir, "cliffmap.png"))
+	rotmap = cliff_to_rotbytes(os.path.join(mapdir, "cliffmap.png"), props['env'], heights, tiles)
 	if not rotmap:
 		exit()
 	gates = gatemap_to_gates(os.path.join(mapdir, "gatemap.png"))
