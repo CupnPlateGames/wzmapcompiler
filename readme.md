@@ -7,13 +7,14 @@ Licenced under GPL v2 or any later.
 
 What is does
 ------------
-Reading heightmap, tilemap, cliffmap and compiling them into a `.map` file. It also include it into a `.wz` file as well as other required and generated files like the `.addon.lev` and `.gam`. External json files are also included for conveniency to generate a playable map file.
+Reading heightmap, tilemap, cliffmap and compiling them into a `.map` file. It also include it into a `.wz` file as well as other required and generated files like the `.addon.lev` and `.gam`. External json files are also included for conveniency to generate a playable map file. A tool is provided to compile some csv files into those json files with symetry.
 
 What it does not
 ----------------
-Placing and editing structures, droids and features. Those are handled with json files that edition is outside the scope of this project, which is generating the binary files that cannot be created by hand.
 
-Pre-rendering maps. You'll have to use your imagination and check what it actually looks like directly from the game.
+Pre-rendering maps, creating a preview image. You'll have to use your imagination and check what it actually looks like directly from the game.
+
+Checking actual data. The compiler doesn't require any game data, non-existant objects will throw errors only when running the game.
 
 What is missing
 ---------------
@@ -33,6 +34,29 @@ sudo apt install python3-pil
 ```
 
 Why Python? Because it's a proof of concept. The "best" language would be C++ to be able to use some of the game code in the future. Like using the existing 3D renderer as a preview or existing map format-related functions. What is interesting is the experimental map making process, not the current code.
+
+Creating the json files
+=======================
+
+The optional `wzobjectcompiler` script reads objects from csv files and create the corresponding json files. It reads `droid.csv`, `struct.csv` and `feature.csv` to create `droid.json`, `struct.json` and `feature.json`, that are then used by the map compiler to create the complete map.
+
+The csv files contains a header and the following columns in that order:
+
+- `Id`: the identifier of the object. It can be anything. When the id starts with `0P-`, multiple objects will be created according to the symetry of the map. Even for features that are not technically owned by a player.
+- `Name`: the template or object name, as defined in game data.
+- `X`: the horizontal coordinate in tile of the object. A round number correspond to the middle of the tile.
+- `Y`: the vertical coordinate in tile of the object. A round number correspond to the middle of the tile.
+- `Rotation`: rotation in degrees.
+- `Owner`: the player number, starting from 0. Feature has an owner to indicate in which player area it is.
+- `Size` (only for struct.csv): the size of the structure in tiles. It is used to compute the right coordinate when creating other symetrical structures.
+
+Then you can run the script.
+
+```
+python3 ../wzobjectcompiler.py <map directory>
+```
+
+See below to add symetry with the `map.json` file that is used by the map compiler as well.
 
 Running the compiler
 ====================
@@ -86,10 +110,27 @@ The map definition contains some informations about the map to compile. It is a 
 - `players`: the number of players on the map
 - `env`: the environment to use, either `rockies` or `arizona` (urban not supported yet)
 - `name`: (optional) an alternative map name. When not provided, the map directory is used as its name.
+- `symetry`: (optional) define which symetry to use when creating objects with `wzobjectcompiler`.
 
 The `name` has some restrictions, that applies either to the `name` property or the directory name when not set. For example the game may not be able to read the map file if the name starts with a number.
 
 For readability in the game, names should not be too long. 16 characters or more should be avoided, but that doesn't prevent the map to be listed.
+
+When no symetry is provided, objects are not duplicated. The available symetries are as follow:
+
+- `N-S`: North to South (Y coordinate are inverted).
+- `E-W`: East to West (X coordinates are inverted).
+- `180`: Central symetry.
+- `NW-SE`: North-West to South-East (top-left becomes bottom-right).
+- `SW-NE`: South-West to North-East (bottom-left becomes top-right).
+- `cross-straight-NvS`: mostly for 2v2 maps, North VS South, with East and West objects being symetrical, then duplicated for the other team.
+- `cross-straight-EvW`: mostly for 2v2 maps, East VS Weast, with North and South objects being symetrical, then duplicated for the other team.
+- `cross-straight-90`: mostly for 4 free-for-all maps, each corner being rotated by 90° around the center.
+- `cross-diag-NWvSE`: mostly for 2v2 maps, North-West VS South-East, with North being duplicated to West, then duplicated for the opposite corner.
+- `cross-diag-NEvSW`:  mostly for 2v2 maps, North-Eeast VS South-West, with North being duplicated to East, then duplicated for the opposite corner.
+- `cross-diag-90`: mostly for 4 free-for-all maps, each side being rotated by 90° around the center.
+
+Only objects which id start with `0P-` are duplicated. All other objects are not affected by the symetry.
 
 Painting the map files
 ======================
