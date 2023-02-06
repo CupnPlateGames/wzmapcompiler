@@ -108,7 +108,7 @@ The map definition contains some informations about the map to compile. It is a 
 - `width`: the width of the map in tiles
 - `height`: the height of the map in tiles
 - `players`: the number of players on the map
-- `env`: the environment to use, either `rockies` or `arizona` (urban not supported yet)
+- `env`: the environment to use, either `rockies`, `arizona` or `urban`
 - `name`: (optional) an alternative map name. When not provided, the map directory is used as its name.
 - `symetry`: (optional) define which symetry to use when creating objects with `wzobjectcompiler`.
 
@@ -177,6 +177,15 @@ For rockies environment:
 - Snow: #f1f1f1
 - Concrete: #636565
 - Water: #1d2f4d
+
+For Urban environment:
+
+- Green: #1f231c
+- Blue: #191a1f
+- Grey: #33312f
+- Orange: #2f2a24
+- Concrete: #4e4c41
+- Water: #263d3c
 
 For Arizona environment:
 

@@ -25,6 +25,15 @@ arizona_tiledef = {
 	(0,0,0): 22, # concrete
 	(0,0,255): 17, # water
 }
+urban_tiledef = {
+	# Urban as set in FlaME
+	(31, 35, 28): 50, # green
+	(25, 26, 31): 0, # blue
+	(51, 49, 47): 78, # gray
+	(47, 42, 36): 22, # orange
+	(78, 76, 65): 51, # concrete
+	(38, 61, 60): 17, # water
+}
 # Regular tile index to cliff tile index
 rockies_cliffdef = {
 	# Rocky cliffs
@@ -46,22 +55,35 @@ arizona_cliffdef = {
 arizona_tile_rotation = {
 	75: 90
 }
+urban_cliffdef = {
+	# Urban cliffs
+	51: { "flat": 19, "straight": 19, "corner": 19}, # Concrete cliff
+	78: { "flat": 67, "straight": 69, "corner": 68}, # Grey cliff
+	"default": { "flat": 67, "straight": 69, "corner": 68},
+}
+urban_tile_rotation = {
+	68: 0
+}
 default_autocliff_diff = 50 # roughly 35°
 default_flat_cliff_diff = 30
 env_tiledef = {
 	"r": rockies_tiledef,
+	"u": urban_tiledef,
 	"a": arizona_tiledef,
 }
 env_cliffdef = {
 	"r": rockies_cliffdef,
+	"u": urban_cliffdef,
 	"a": arizona_cliffdef,
 }
 env_tilerot = {
 	"r": rockies_tile_rotation,
+	"u": urban_tile_rotation,
 	"a": arizona_tile_rotation,
 }
 env_dataset = {
 	"r": "MULTI_CAM_3",
+	"u": "MULTI_CAM_2",
 	"a": "MULTI_CAM_1",
 }
 
@@ -471,8 +493,8 @@ if (len(sys.argv) >= 2 and sys.argv[1] == "autocliff"):
 	step = default_autocliff_diff
 	mapdir = sys.argv[2]
 	if (len(sys.argv) >= 4):
-		step = int(argv[2])
-		mapdir = argv[3]
+		step = int(sys.argv[2])
+		mapdir = sys.argv[3]
 	mapdir = get_base_dir(mapdir)
 	if autogen_cliffmap(os.path.join(mapdir, "heightmap.png"), step, os.path.join(mapdir, "autocliffmap.png")):
 		print("Done generating cliffmap into autocliffmap.png with step of %d."%step)
@@ -495,7 +517,7 @@ if not ('width' in props) or not ('height' in props) or not ('players' in props)
 	exit()
 
 if not props['env'][0] in env_dataset:
-	print("Environment not found, should be 'arizona' or 'rockies'")
+	print("Environment not found, should be 'arizona', 'urban' or 'rockies'")
 	exit()
 
 if not ('name' in props):
