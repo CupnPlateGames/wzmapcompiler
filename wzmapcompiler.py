@@ -495,6 +495,13 @@ if (len(sys.argv) >= 2 and sys.argv[1] == "autocliff"):
 	if (len(sys.argv) >= 4):
 		step = int(sys.argv[2])
 		mapdir = sys.argv[3]
+	else:
+		try:
+			props = read_map_props(os.path.join(mapdir, "map.json"))
+			if 'autocliff' in props:
+				step = props['autocliff']
+		except FileNotFoundError:
+			print("Cannot read %s, using default step"%os.path.join(mapdir, "map.json"))
 	mapdir = get_base_dir(mapdir)
 	if autogen_cliffmap(os.path.join(mapdir, "heightmap.png"), step, os.path.join(mapdir, "autocliffmap.png")):
 		print("Done generating cliffmap into autocliffmap.png with step of %d."%step)

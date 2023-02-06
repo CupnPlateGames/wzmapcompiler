@@ -98,7 +98,7 @@ python3 ../wzmapcompiler.py autocliff <map directory>
 
 to automatically generate a cliffmap. It will be created in autocliffmap.png, you can directly move it to cliffmap.png or merge it into your existing cliffmap.
 
-You can also provide the minimum height difference in pixel value as a parameter after autocliff.
+You can also provide the minimum height difference in pixel value as a parameter after autocliff or inside the `map.json` file (see below).
 
 Creating the map.json file
 ==========================
@@ -110,6 +110,7 @@ The map definition contains some informations about the map to compile. It is a 
 - `players`: the number of players on the map
 - `env`: the environment to use, either `rockies`, `arizona` or `urban`
 - `name`: (optional) an alternative map name. When not provided, the map directory is used as its name.
+- `autocliff`: (optional) the step value to use for autocliffing when not set from argument
 - `symetry`: (optional) define which symetry to use when creating objects with `wzobjectcompiler`.
 
 The `name` has some restrictions, that applies either to the `name` property or the directory name when not set. For example the game may not be able to read the map file if the name starts with a number.
