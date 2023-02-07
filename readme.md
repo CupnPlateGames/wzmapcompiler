@@ -190,13 +190,13 @@ For Urban environment:
 
 For Arizona environment:
 
-- Red: #ff0000
-- Yellow: #808000
-- Sand: #ffff00
-- Brown: #404040
-- Green: #008000
-- Concrete #000000
-- Water: #0000ff
+- Red: #614431
+- Yellow: #624f30
+- Sand: #725b35
+- Brown: #422e22
+- Green: #202010
+- Concrete #504e4d
+- Water: #263d3c
 
 Any pixel outside those values will raise an error about unknown tiles and it will be rendered as grass (tile 0)
 

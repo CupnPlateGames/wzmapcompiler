@@ -17,13 +17,13 @@ rockies_tiledef = {
 }
 arizona_tiledef = {
 	# Arizona as set in FlaME
-	(255,0,0): 48, # red
-	(128,128,0): 9, # yellow
-	(255,255,0): 12, # sand
-	(64,64,64): 5, # brown
-	(0,128,0): 23, # green
-	(0,0,0): 22, # concrete
-	(0,0,255): 17, # water
+	(97,68,49): 48, # red
+	(98,79,48): 9, # yellow
+	(114,91,53): 12, # sand
+	(66,46,34): 5, # brown
+	(32,32,16): 23, # green
+	(80,78,77): 22, # concrete
+	(38,61,60): 17, # water
 }
 urban_tiledef = {
 	# Urban as set in FlaME
