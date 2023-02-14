@@ -459,7 +459,9 @@ def autogen_cliffmap(heightfilename, step, outfilename):
 			pxx = img.getpixel((x+1, y))[0]
 			pxy = img.getpixel((x, y+1))[0]
 			pxxy = img.getpixel((x+1, y+1))[0]
-			if (abs(px-pxx) >= step or abs(px-pxy) >= step or abs(px-pxxy) >= step):
+			top = max(px, pxx, pxy, pxxy)
+			bottom = min(px, pxx, pxy, pxxy)
+			if (top - bottom >= step):
 				cliff.putpixel((x,y), (255,64,64,255))
 			else:
 				cliff.putpixel((x,y), (0,0,0,0))
