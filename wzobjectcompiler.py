@@ -48,7 +48,7 @@ def symetryze(obj, width, height, symetry, forPlayer):
 		return {
 			"name": obj["name"],
 			"id": newId,
-			"x": width - obj["x"],
+			"x": width - obj["x"] + offset,
 			"y": obj["y"],
 			"rot": (360 - obj["rot"]) % 360,
 			"owner": forPlayer,
